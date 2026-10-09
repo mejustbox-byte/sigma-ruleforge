@@ -1,10 +1,12 @@
 """Bounded YAML input, condition AST and shared predicate semantics."""
 
 import fnmatch
+import json
 import re
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 import yaml
 
@@ -30,9 +32,25 @@ def fail(code, message, node=None):
     )
 
 
+class MarkedMap(dict):
+    """Mapping retaining YAML positions without changing scalar values."""
+
+    def at(self, key):
+        return SimpleNamespace(start_mark=self.marks.get(key, self.start_mark))
+
+
 class Loader(yaml.SafeLoader):
+    def construct_yaml_map(self, node):
+        result = MarkedMap()
+        result.start_mark, result.marks = node.start_mark, {}
+        yield result
+        values = self.construct_mapping(node)
+        result.update(values)
+        result.marks.update(values.marks)
+
     def construct_mapping(self, node, deep=False):
-        result = {}
+        result = MarkedMap()
+        result.start_mark, result.marks = node.start_mark, {}
         for key, value in node.value:
             if not isinstance(key, yaml.ScalarNode) or key.tag != "tag:yaml.org,2002:str":
                 fail("YAML_KEY", "Mapping keys must be strings", key)
@@ -40,14 +58,56 @@ class Loader(yaml.SafeLoader):
             if name in result:
                 fail("YAML_DUPLICATE", f"Duplicate key: {name}", key)
             result[name] = self.construct_object(value, deep=deep)
+            result.marks[name] = value.start_mark
         return result
 
 
-def read_bytes(path):
+Loader.add_constructor("tag:yaml.org,2002:map", Loader.construct_yaml_map)
+
+
+def read_bytes(path, limit=MAX_BYTES):
     with Path(path).open("rb") as stream:
-        data = stream.read(MAX_BYTES + 1)
-    if len(data) > MAX_BYTES:
-        fail("INPUT_LIMIT", "Input exceeds 1 MiB")
+        data = stream.read(limit + 1)
+    if len(data) > limit:
+        fail("INPUT_LIMIT", f"Input exceeds {limit} bytes")
+    return data
+
+
+def load_json(path, *, dataset=False):
+    """Bound JSON decoding, reject duplicate keys and non-finite constants."""
+    raw = read_bytes(path, 128 * MAX_BYTES if dataset else MAX_BYTES)
+
+    def mapping(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                fail("JSON_DUPLICATE", f"Duplicate key: {key}")
+            result[key] = value
+        return result
+
+    def invalid_constant(value):
+        fail("JSON_SYNTAX", f"Non-finite constant: {value}")
+
+    try:
+        data = json.loads(
+            raw.decode("utf-8"), object_pairs_hook=mapping, parse_constant=invalid_constant
+        )
+    except RuleError:
+        raise
+    except RecursionError as exc:
+        raise RuleError("INPUT_LIMIT", "JSON nesting limit exceeded") from exc
+    except (ValueError, UnicodeError) as exc:
+        raise RuleError("JSON_SYNTAX", str(exc)) from exc
+    count, stack = 0, [(data, 0)]
+    while stack:
+        value, depth = stack.pop()
+        count += 1
+        if depth > MAX_DEPTH or count > (3_000_000 if dataset else MAX_NODES):
+            fail("INPUT_LIMIT", "JSON depth or node limit exceeded")
+        if isinstance(value, dict):
+            stack.extend((v, depth + 1) for v in value.values())
+        elif isinstance(value, list):
+            stack.extend((v, depth + 1) for v in value)
     return data
 
 
@@ -182,40 +242,40 @@ def validate(path):
     if not isinstance(data, dict):
         fail("SCHEMA", "Rule must be a mapping")
     if any(key in data for key in ("correlation", "filter")):
-        fail("UNSUPPORTED", "Correlation and filter rules are unsupported")
+        fail("UNSUPPORTED", "Correlation and filter rules are unsupported", data)
     if data.get("taxonomy", "sigma") != "sigma":
-        fail("UNSUPPORTED", "Only sigma taxonomy is supported")
+        fail("UNSUPPORTED", "Only sigma taxonomy is supported", data.at("taxonomy"))
     title = data.get("title")
     if not isinstance(title, str) or not title.strip() or len(title) > 256:
-        fail("SCHEMA", "title must contain 1..256 characters")
+        fail("SCHEMA", "title must contain 1..256 characters", data.at("title"))
     try:
         data["id"] = str(uuid.UUID(data["id"]))
     except (KeyError, ValueError, TypeError, AttributeError):
-        fail("SCHEMA", "RuleForge profile requires a UUID id")
+        fail("SCHEMA", "RuleForge profile requires a UUID id", data.at("id"))
     source = data.get("logsource")
     if (
         not isinstance(source, dict)
         or not source
         or not all(isinstance(v, str) and v for v in source.values())
     ):
-        fail("SCHEMA", "logsource must be a nonempty string mapping")
+        fail("SCHEMA", "logsource must be a nonempty string mapping", data.at("logsource"))
     for key, allowed in {
         "status": {"stable", "test", "experimental", "deprecated", "unsupported"},
         "level": {"informational", "low", "medium", "high", "critical"},
     }.items():
         if key in data and (not isinstance(data[key], str) or data[key] not in allowed):
-            fail("SCHEMA", f"Invalid {key}")
+            fail("SCHEMA", f"Invalid {key}", data.at(key))
     for key in ("tags", "references", "fields", "falsepositives"):
         if key in data and (
             not isinstance(data[key], list) or not all(isinstance(v, str) for v in data[key])
         ):
-            fail("SCHEMA", f"{key} must be a string list")
+            fail("SCHEMA", f"{key} must be a string list", data.at(key))
     detection = data.get("detection")
     if not isinstance(detection, dict) or not isinstance(detection.get("condition"), str):
-        fail("SCHEMA", "detection.condition must be a string")
+        fail("SCHEMA", "detection.condition must be a string", data.at("detection"))
     selectors = {k: v for k, v in detection.items() if k != "condition"}
     if not selectors or len(selectors) > 128:
-        fail("SCHEMA", "Expected 1..128 selectors")
+        fail("SCHEMA", "Expected 1..128 selectors", detection)
     for name, selector in selectors.items():
         if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", name) or name in {
             "and",
@@ -225,27 +285,34 @@ def validate(path):
             "of",
             "them",
         }:
-            fail("SCHEMA", f"Invalid selector name: {name}")
+            fail("SCHEMA", f"Invalid selector name: {name}", detection.at(name))
         if not isinstance(selector, dict) or not selector:
-            fail("UNSUPPORTED", "Only nonempty map selectors are supported")
+            fail("UNSUPPORTED", "Only nonempty map selectors are supported", detection.at(name))
         for key, value in selector.items():
             field, *mods = key.split("|")
             if not field or any(m not in MODIFIERS for m in mods) or len(set(mods)) != len(mods):
-                fail("MODIFIER", f"Unsupported field/modifier: {key}")
+                fail("MODIFIER", f"Unsupported field/modifier: {key}", selector.at(key))
             transforms = set(mods) - {"all"}
             if len(transforms) > 1 or ("exists" in mods and mods != ["exists"]):
-                fail("MODIFIER", "Modifier combination is unsupported")
+                fail("MODIFIER", "Modifier combination is unsupported", selector.at(key))
             values = value if isinstance(value, list) else [value]
             if not values or len(values) > 128:
-                fail("SCHEMA", "Value lists must contain 1..128 values")
+                fail("SCHEMA", "Value lists must contain 1..128 values", selector.at(key))
             for item in values:
                 if item is not None and type(item) not in (str, int, bool):
-                    fail("UNSUPPORTED", "Only strings, integers, booleans and null are supported")
+                    fail(
+                        "UNSUPPORTED",
+                        "Only strings, integers, booleans and null are supported",
+                        selector.at(key),
+                    )
                 if mods and "exists" not in mods and not isinstance(item, str):
-                    fail("MODIFIER", "String modifiers require string values")
+                    fail("MODIFIER", "String modifiers require string values", selector.at(key))
                 if "exists" in mods and type(value) is not bool:
-                    fail("MODIFIER", "exists requires a scalar boolean")
-    ast = Condition(detection["condition"], selectors).parse()
+                    fail("MODIFIER", "exists requires a scalar boolean", selector.at(key))
+    try:
+        ast = Condition(detection["condition"], selectors).parse()
+    except RuleError as exc:
+        fail(exc.code, str(exc), detection.at("condition"))
     known = {
         "title",
         "id",

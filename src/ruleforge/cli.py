@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 
 from . import __version__
-from .core import RuleError, convert, fail, load_yaml, matches, read_bytes, validate
+from .core import RuleError, convert, fail, load_json, load_yaml, matches, read_bytes, validate
 
 
 def paths(value):
@@ -21,7 +21,7 @@ def paths(value):
     return [root]
 
 
-def attack_map(rule, dataset):
+def attack_index(dataset):
     if (
         not isinstance(dataset, dict)
         or dataset.get("type") != "bundle"
@@ -32,9 +32,25 @@ def attack_map(rule, dataset):
     for obj in dataset["objects"]:
         if not isinstance(obj, dict):
             fail("DATASET", "Invalid STIX object")
-        for ref in obj.get("external_references", []):
-            if ref.get("source_name") == "mitre-attack" and ref.get("external_id"):
-                ids[ref["external_id"].lower()] = obj
+        if obj.get("type") not in ("attack-pattern", "x-mitre-tactic"):
+            continue
+        references = obj.get("external_references", [])
+        if not isinstance(references, list) or not all(isinstance(ref, dict) for ref in references):
+            fail("DATASET", "Invalid external_references")
+        keys = []
+        for ref in references:
+            if ref.get("source_name") == "mitre-attack" and isinstance(ref.get("external_id"), str):
+                keys.append(ref["external_id"].lower())
+        if obj.get("type") == "x-mitre-tactic" and isinstance(obj.get("x_mitre_shortname"), str):
+            keys.append(obj["x_mitre_shortname"].lower())
+        for key in keys:
+            if key in ids:
+                fail("DATASET", f"Ambiguous ATT&CK identifier: {key}")
+            ids[key] = obj
+    return ids
+
+
+def attack_map(rule, ids):
     output = []
     for tag in rule.metadata.get("tags", []):
         if tag.lower().startswith("attack."):
@@ -47,6 +63,8 @@ def attack_map(rule, dataset):
                     {
                         "tag": tag,
                         "name": obj.get("name"),
+                        "type": obj["type"],
+                        "domains": obj.get("x_mitre_domains", []),
                         "status": "revoked"
                         if obj.get("revoked")
                         else "deprecated"
@@ -59,7 +77,7 @@ def attack_map(rule, dataset):
 
 def test_manifest(path):
     root = Path(path).resolve().parent
-    manifest = json.loads(read_bytes(path))
+    manifest = load_json(path)
     if (
         not isinstance(manifest, dict)
         or not isinstance(manifest.get("cases"), list)
@@ -76,7 +94,7 @@ def test_manifest(path):
             checks.append(matches(rule, fixture["event"]) == fixture["match"])
         if "pipeline" in case:
             query = convert(rule, load_yaml(root / case["pipeline"]))
-            checks.append(query + "\n" == (root / case["golden"]).read_text(encoding="utf-8"))
+            checks.append(query + "\n" == read_bytes(root / case["golden"]).decode("utf-8"))
         if not checks:
             fail("MANIFEST", "Case has no event or golden checks")
         results.append({"rule": case["rule"], "checks": len(checks), "passed": all(checks)})
@@ -137,6 +155,22 @@ def main(argv=None):
             output = test_manifest(args.manifest)
             code = 0 if all(item["passed"] for item in output) else 1
         else:
+            pipeline = load_yaml(args.pipeline) if args.command == "convert" else None
+            dataset = (
+                attack_index(load_json(args.dataset, dataset=True))
+                if args.command == "attack-map"
+                else None
+            )
+            pipeline_digest = (
+                hashlib.sha256(read_bytes(args.pipeline)).hexdigest()
+                if pipeline is not None
+                else None
+            )
+            dataset_digest = (
+                hashlib.sha256(read_bytes(args.dataset, 128 * 1_048_576)).hexdigest()
+                if dataset is not None
+                else None
+            )
             seen = set()
             for path in paths(args.path):
                 try:
@@ -152,20 +186,16 @@ def main(argv=None):
                         "warnings": rule.warnings,
                     }
                     if args.command == "convert":
-                        item["query"] = convert(rule, load_yaml(args.pipeline))
+                        item["query"] = convert(rule, pipeline)
                         item["manifest"] = {
                             "tool": __version__,
                             "sigma_specification": "2.1.0",
                             "input_sha256": hashlib.sha256(read_bytes(path)).hexdigest(),
-                            "pipeline_sha256": hashlib.sha256(
-                                read_bytes(args.pipeline)
-                            ).hexdigest(),
+                            "pipeline_sha256": pipeline_digest,
                         }
                     elif args.command == "attack-map":
-                        item["attack"] = attack_map(rule, json.loads(read_bytes(args.dataset)))
-                        item["dataset_sha256"] = hashlib.sha256(
-                            read_bytes(args.dataset)
-                        ).hexdigest()
+                        item["attack"] = attack_map(rule, dataset)
+                        item["dataset_sha256"] = dataset_digest
                         item["warnings"] += [
                             f"{v['tag']}: {v['status']}"
                             for v in item["attack"]

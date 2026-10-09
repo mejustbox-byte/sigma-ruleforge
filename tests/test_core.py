@@ -198,3 +198,74 @@ def test_uuid_normalization(tmp_path, capsys):
     assert main(["validate", str(tmp_path)]) == 1
     assert "DUPLICATE_ID" in capsys.readouterr().out
     assert validate(path).metadata["id"] == "7b79be24-6d8a-4c31-bd15-df297b38e8b3"
+
+
+@pytest.mark.parametrize(
+    "old,new,line",
+    [
+        ("title: Synthetic suspicious shell execution", "title: []", 1),
+        ("level: medium", "level: invalid", 16),
+        ("Image|endswith", "Image|re", 9),
+        ("selection and not filter", "selection and absent", 15),
+    ],
+)
+def test_semantic_positions(tmp_path, old, new, line):
+    with pytest.raises(RuleError) as exc:
+        validate(rule(tmp_path, BASE.replace(old, new)))
+    assert exc.value.line == line
+    assert exc.value.column is not None
+
+
+def test_json_limits_and_duplicates(tmp_path):
+    from ruleforge.core import load_json
+
+    path = tmp_path / "input.json"
+    for text, code in [
+        ('{"a":1,"a":2}', "JSON_DUPLICATE"),
+        ('{"a":NaN}', "JSON_SYNTAX"),
+        ("[" * 41 + "0" + "]" * 41, "INPUT_LIMIT"),
+        ("[" * 1100 + "0" + "]" * 1100, "INPUT_LIMIT"),
+    ]:
+        path.write_text(text)
+        with pytest.raises(RuleError) as exc:
+            load_json(path)
+        assert exc.value.code == code
+
+
+def test_large_dataset_and_tactics(tmp_path, capsys):
+    from ruleforge.core import load_json
+
+    dataset = tmp_path / "attack.json"
+    bundle = {
+        "type": "bundle",
+        "objects": [
+            {
+                "type": "x-mitre-tactic",
+                "name": "Execution",
+                "x_mitre_shortname": "execution",
+                "external_references": [{"source_name": "mitre-attack", "external_id": "TA0002"}],
+            },
+            {
+                "type": "attack-pattern",
+                "name": "Shell",
+                "x_mitre_domains": ["enterprise-attack"],
+                "revoked": True,
+                "external_references": [
+                    {"source_name": "mitre-attack", "external_id": "T1059.003"}
+                ],
+            },
+            {"type": "identity", "description": "x" * 1_048_576},
+        ],
+    }
+    dataset.write_text(json.dumps(bundle))
+    assert load_json(dataset, dataset=True)["type"] == "bundle"
+    with pytest.raises(RuleError):
+        load_json(dataset)
+    path = rule(tmp_path, BASE + "  - attack.execution\n")
+    assert main(["attack-map", str(path), "--dataset", str(dataset), "--format", "json"]) == 0
+    result = json.loads(capsys.readouterr().out)[0]
+    assert [v["status"] for v in result["attack"]] == ["revoked", "active"]
+    assert result["attack"][1]["type"] == "x-mitre-tactic"
+    bundle["objects"].append(bundle["objects"][1])
+    dataset.write_text(json.dumps(bundle))
+    assert main(["attack-map", str(path), "--dataset", str(dataset)]) == 1
