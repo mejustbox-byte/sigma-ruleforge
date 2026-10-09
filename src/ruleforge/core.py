@@ -189,7 +189,7 @@ def validate(path):
     if not isinstance(title, str) or not title.strip() or len(title) > 256:
         fail("SCHEMA", "title must contain 1..256 characters")
     try:
-        uuid.UUID(data["id"])
+        data["id"] = str(uuid.UUID(data["id"]))
     except (KeyError, ValueError, TypeError, AttributeError):
         fail("SCHEMA", "RuleForge profile requires a UUID id")
     source = data.get("logsource")
@@ -339,7 +339,11 @@ def matches(rule, event):
 
 
 def convert(rule, pipeline):
-    if not isinstance(pipeline, dict) or pipeline.get("version") != 1:
+    if (
+        not isinstance(pipeline, dict)
+        or type(pipeline.get("version")) is not int
+        or pipeline.get("version") != 1
+    ):
         fail("PIPELINE", "Pipeline requires version: 1")
     if pipeline.get("logsource") != rule.metadata["logsource"]:
         fail("PIPELINE", "Pipeline logsource must exactly match the rule")

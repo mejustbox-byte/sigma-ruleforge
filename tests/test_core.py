@@ -186,3 +186,14 @@ def test_attack_snapshot(tmp_path, capsys):
 def test_modifiers(tmp_path, key, value, event, expected):
     text = f"title: Test\nid: 7b79be24-6d8a-4c31-bd15-df297b38e8b3\nlogsource:\n  product: test\ndetection:\n  selection:\n    {key}: {value}\n  condition: selection\n"
     assert matches(validate(rule(tmp_path, text)), event) is expected
+
+
+def test_uuid_normalization(tmp_path):
+    path = rule(tmp_path)
+    (tmp_path / "second.yml").write_text(
+        BASE.replace(
+            "7b79be24-6d8a-4c31-bd15-df297b38e8b3", "{7b79be24-6d8a-4c31-bd15-df297b38e8b3}"
+        )
+    )
+    assert main(["validate", str(tmp_path)]) == 1
+    assert validate(path).metadata["id"] == "7b79be24-6d8a-4c31-bd15-df297b38e8b3"
