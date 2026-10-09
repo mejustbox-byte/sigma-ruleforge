@@ -1,0 +1,11 @@
+version: 1
+logsource:
+  product: windows
+  category: process_creation
+scope:
+  index: lab
+  sourcetype: synthetic_process
+fields:
+  Image: Image
+  CommandLine: CommandLine
+  User: User

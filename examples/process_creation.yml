@@ -1,0 +1,18 @@
+title: Synthetic suspicious shell execution
+id: 7b79be24-6d8a-4c31-bd15-df297b38e8b3
+status: experimental
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: '\cmd.exe'
+    CommandLine|contains:
+      - 'whoami'
+      - 'hostname'
+  filter:
+    User: 'LAB\\service'
+  condition: selection and not filter
+level: medium
+tags:
+  - attack.t1059.003

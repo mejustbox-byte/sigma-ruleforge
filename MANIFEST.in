@@ -1,0 +1,4 @@
+include *.md uv.lock
+recursive-include examples *.yml *.json *.spl
+recursive-include scripts *.py
+recursive-include tests *.py

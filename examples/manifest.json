@@ -1,0 +1,1 @@
+{"cases":[{"rule":"process_creation.yml","pipeline":"splunk.yml","golden":"process_creation.spl","events":[{"event":{"Image":"C:\\Windows\\cmd.exe","CommandLine":"cmd /c WHOAMI","User":"analyst"},"match":true},{"event":{"Image":"C:\\Windows\\notepad.exe","CommandLine":"whoami"},"match":false},{"event":{"Image":"C:\\Windows\\cmd.exe","CommandLine":"echo hello"},"match":false}]}]}

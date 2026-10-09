@@ -1,45 +1,33 @@
-# Установка и CLI
+# Установка и эксплуатация
 
-## Что доступно сейчас
-
-Сейчас доступны только документы. Исполняемого пакета, CLI, lock-файла и тестового runner в репозитории ещё нет. Не выполняйте `pip install sigma-ruleforge`: публикация пакета проектом не подтверждена.
-
-Получить документацию:
+Нужны Python 3.12+ и uv. Зависимости фиксируются в `uv.lock`; пакет устанавливается из checkout. Публикация в PyPI не заявляется.
 
 ```bash
 git clone https://github.com/mejustbox-byte/sigma-ruleforge.git
 cd sigma-ruleforge
-git status --short --branch
+uv sync --locked
+uv run --locked ruleforge --help
+uv run --locked ruleforge --version
 ```
 
-## План установки MVP
+После установки CLI работает без сети, credentials и доступа к SIEM.
 
-Выбран CPython 3.12.14 и uv 0.12.23 с отдельным virtualenv; обоснование и остальные версии — в [TECH-STACK.md](TECH-STACK.md). Затем появятся packaging metadata, lock-файл с проверяемыми версиями и команды установки из checkout. До этого нельзя обещать воспроизводимую установку зависимостей.
-
-Не нужны SIEM credentials, cloud keys или production-логи. Зависимости и snapshots ATT&CK устанавливаются отдельно; обычный запуск планируется офлайн. Backend-зависимости должны быть optional и явно перечислены.
-
-## Проект CLI — пока не реализован
-
-Ниже показан будущий интерфейс; эти команды сейчас не работают:
-
-```text
-ruleforge validate rules/ --format json --strict
-ruleforge convert rules/example.yml --backend splunk --pipeline mappings/lab.yml --output build/example.spl
-ruleforge test --manifest tests/manifests/splunk.json
-ruleforge attack-map rules/ --dataset datasets/attack.json --format json
-ruleforge backends --format json
+```bash
+uv run --locked ruleforge validate examples/ --format json --strict
+uv run --locked ruleforge backends --format json
+uv run --locked ruleforge convert examples/process_creation.yml --backend splunk --pipeline examples/splunk.yml --output result.spl
+uv run --locked ruleforge test --manifest examples/manifest.json
+uv run --locked ruleforge attack-map examples/ --dataset /path/to/enterprise-attack.json --format json
 ```
 
-`validate` проверяет YAML и семантику; `convert` только создаёт запрос; `test` сравнивает fixtures с ожиданиями; `attack-map` сверяет теги с локальным snapshot; `backends` показывает capabilities. Пути в примерах также появятся только вместе с реализацией.
+`validate` рекурсивно обрабатывает `.yml`/`.yaml` в каталоге. `--strict` переводит предупреждения в неуспешный результат. Для `--output` нужно одно правило; существующий файл сохраняется, если не указан `--overwrite`. Перезапись использует временный файл и atomic replace. JSON-вывод конвертации содержит digest правила и pipeline.
 
-Планируемые exit codes: 0 — успешная обработка, 1 — ошибки правила/конвертации/теста, 2 — неправильные аргументы или конфигурация, 3 — IO/внутренняя ошибка. `--strict` переводит предупреждения в ошибки; `--format json` даёт машиночитаемый вывод. Для перезаписи output потребуется явный `--overwrite`. Окончательный интерфейс должен сопровождаться `--help` и smoke-тестами.
+Коды выхода: 0 — успех; 1 — ошибка правила, pipeline или провал fixtures; 2 — неправильные CLI-аргументы/JSON-конфигурация; 3 — ошибка ввода/вывода. YAML-ошибки содержат строки и колонки; семантические диагностики содержат код и сообщение без source positions.
 
-## Проверка после реализации
+Pipeline содержит `version: 1`, точный `logsource`, `scope` и `fields`. Scope поддерживает literal `index`, `sourcetype`, `source`, `host`; вставка произвольного SPL запрещена. Имена целевых полей ограничены буквами ASCII, цифрами и underscore. У каждого используемого Sigma-поля должен быть mapping. [Рабочий пример](examples/splunk.yml).
 
-Сверить runtime и lock-файл; установить зависимости в изолированное окружение; запустить unit, negative, golden и CLI smoke tests согласно будущему CONTRIBUTING.md. На текущем этапе проверяются ссылки, достоверность статуса и отсутствие чувствительных данных в документах.
+Manifest содержит список `cases`: путь `rule`, `events` с `event` и boolean `match`, а для golden-проверки — `pipeline` и `golden`. Пути разрешаются относительно manifest. [Пример](examples/manifest.json). Fixtures и manifest должны быть доверенными локальными файлами.
 
-Ошибки и limitations описаны в [ARCHITECTURE.md](ARCHITECTURE.md). Уязвимости сообщайте согласно [SECURITY.md](SECURITY.md).
+## Локальная приёмка Splunk
 
-## Доступный smoke документации
-
-В CPython 3.12.14 из корня репозитория выполните `python3 scripts/smoke.py`. Скрипт не устанавливает зависимости, не читает secrets и не обращается к сети. Cloud-проверка остаётся отдельным обязательным шагом.
+В отдельной лаборатории подготовьте index и sourcetype для синтетических событий, проверьте extraction и типы полей. Сопоставьте каждое событие из manifest с результатом сгенерированного запроса. Отдельно проверьте missing/null/empty, отрицания, escaping, Unicode, числовые/boolean и multivalue значения. Зафиксируйте версию Splunk и pipeline. Успех Python fixtures не заменяет эту проверку.

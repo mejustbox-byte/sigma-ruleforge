@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sigma-ruleforge"
+version = "0.1.0"
+description = "Offline Sigma validation, Splunk conversion and synthetic event testing"
+requires-python = ">=3.12"
+dependencies = ["PyYAML==6.0.3"]
+license = "MIT"
+
+[project.scripts]
+ruleforge = "ruleforge.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.14,<1"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
