@@ -1,48 +1,43 @@
 # Sigma RuleForge
 
-Публичный инструмент для разбора, валидации, конвертации и тестирования Sigma-правил для SIEM с привязкой к MITRE ATT&CK.
+Офлайн CLI для проверки Sigma-правил, генерации Splunk SPL и тестирования правил на синтетических событиях. Версия 0.1.0 реализует ограниченный профиль Sigma Rules Specification 2.1.0.
 
-## Статус
+## Быстрый старт
 
-Проект находится на стадии проектирования: в репозитории есть документация, но ещё нет исполняемого CLI, парсера, конвертеров, установленных зависимостей или golden-наборов. Описанные ниже возможности — контракт будущего MVP, а не заявление о готовности. Команды в INSTALL.md пока не исполняются.
+```bash
+git clone https://github.com/mejustbox-byte/sigma-ruleforge.git
+cd sigma-ruleforge
+uv sync --locked
+uv run --locked ruleforge validate examples/ --format json
+uv run --locked ruleforge convert examples/process_creation.yml --pipeline examples/splunk.yml
+uv run --locked ruleforge test --manifest examples/manifest.json
+```
 
-## Планируемые возможности
+## Возможности
 
-- Безопасный Sigma YAML-парсер с позициями исходного текста и запретом дублирующихся ключей.
-- Проверка структуры, типов, метаданных, logsource, detection и выражения condition.
-- Промежуточное представление правила и явные диагностические сообщения.
-- Конвертация через адаптеры SIEM: первым планируется Splunk SPL, далее Elastic и QRadar.
-- Golden-наборы для стабильности запросов и тесты поведения на синтетических событиях.
-- Проверка ATT&CK-тегов по фиксированной версии набора данных.
+- Безопасный YAML: запрет дублирующихся ключей, anchors/aliases и explicit tags; ограничение размера, глубины и числа токенов.
+- Проверка обязательных полей профиля, UUID, logsource, selectors и condition; дубликаты ID в пакете — ошибка.
+- `and`, `or`, `not`, скобки, `1 of` и `all of` с wildcard-именами селекторов.
+- Map selectors, списки значений, wildcards, contains/startswith/endswith/all/exists.
+- Splunk SPL1 `where/match` с обязательным локальным pipeline и явным mapping каждого поля.
+- Отдельные golden-проверки текста и поведенческие проверки синтетических событий.
+- `attack-map` сверяет теги техник с предоставленным локальным STIX bundle; сохраняет digest, сообщает unknown/deprecated/revoked.
 
-Конвертация не доказывает, что запрос обнаруживает угрозу. Полевые имена, источники событий и семантика целевого SIEM требуют отдельной проверки. Автоматическая отправка запросов в SIEM в MVP не предусмотрена.
+## Ограничения
 
-## Поток обработки
+Это профиль совместимости, а не полная реализация Sigma. Keyword/list-of-map selectors, regex/base64/cidr modifiers, float, correlation, filters, aggregation и multi-document YAML отклоняются. Backend только Splunk. ATT&CK bundle не включён: его происхождение и версию необходимо фиксировать при подготовке локального набора. Tactic-name теги пока выводятся как unknown.
 
-YAML → безопасный разбор → структурная и семантическая валидация → IR → mapping полей → backend → запрос и диагностика. Ошибки не должны приводить к молчаливому упрощению условия.
+Запросы не выполняются в SIEM. Локальный event runner использует плоские события со скалярными полями; он не моделирует Splunk extraction, multivalue fields и различия Unicode case folding. Интеграционная проверка на реальном Splunk ещё не выполнена. Готовность ограничена офлайн CLI и проверенным профилем.
 
 ## Документация
 
-- [Установка и проект CLI](INSTALL.md)
-- [Выбранный стек и статус среды](TECH-STACK.md)
-- [Архитектура, диагностика и тестирование](ARCHITECTURE.md)
-- [Участие в разработке](CONTRIBUTING.md)
-- [План развития](ROADMAP.md)
-- [История изменений](CHANGELOG.md)
-- [Политика безопасности](SECURITY.md)
-- [Лицензия MIT](LICENSE)
+- [Установка и эксплуатация](INSTALL.md)
+- [Архитектура и профиль](ARCHITECTURE.md)
+- [Стек и воспроизводимость](TECH-STACK.md)
+- [Разработка](CONTRIBUTING.md)
+- [Roadmap](ROADMAP.md)
+- [Изменения](CHANGELOG.md)
+- [Безопасность](SECURITY.md)
+- [MIT](LICENSE)
 
-## Публичный OPSEC
-
-Не добавляйте production-логи, секреты, персональные данные, внутренние адреса и конфигурации клиентов. Предпочитайте полностью синтетические события. Обезличивание не гарантирует удаления всех чувствительных данных. Примеры не должны выполнять команды из входного YAML, обращаться к SIEM или загружать внешние ресурсы.
-
-## Нормативные источники
-
-- [Sigma Rules Specification](https://sigmahq.io/sigma-specification/specification/sigma-rules-specification.html)
-- [Sigma Processing Pipelines](https://sigmahq.io/docs/digging-deeper/pipelines.html)
-- [MITRE ATT&CK Data & Tools](https://attack.mitre.org/resources/attack-data-and-tools/)
-
-При реализации фиксируйте версию спецификации и datasets в manifest. Полная совместимость со всеми расширениями Sigma пока не заявляется.
-
-## Bootstrap smoke
-
+В публичных fixtures используются только синтетические данные. Не публикуйте production-логи, секреты или конфигурации клиентов.

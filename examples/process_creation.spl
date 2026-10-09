@@ -1,0 +1,1 @@
+search index="lab" sourcetype="synthetic_process" | where (((coalesce(match('Image', "(?is)\\\\cmd\\.exe\\z"), false())) AND (coalesce(match('CommandLine', "(?is)whoami"), false()) OR coalesce(match('CommandLine', "(?is)hostname"), false()))) AND (NOT ((coalesce(match('User', "(?is)\\ALAB\\\\service\\z"), false())))))

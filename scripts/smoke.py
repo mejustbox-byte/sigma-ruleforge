@@ -6,8 +6,8 @@ from pathlib import Path
 
 def main():
     root = Path(__file__).resolve().parent.parent
-    if sys.version_info[:3] != (3, 12, 14):
-        raise SystemExit('Expected CPython 3.12.14')
+    if sys.version_info < (3, 12):
+        raise SystemExit('Expected Python 3.12 or newer')
     documents = (
         'README.md', 'ROADMAP.md', 'INSTALL.md', 'CHANGELOG.md', 'LICENSE',
         'SECURITY.md', 'ARCHITECTURE.md', 'CONTRIBUTING.md', 'TECH-STACK.md',
@@ -20,7 +20,7 @@ def main():
             if '://' not in target and not (root / target.split('#')[0]).is_file():
                 raise SystemExit(f'Broken local link in {name}')
     print('PASS: runtime, required documents, local links, code fences; offline')
-    print('This check does not validate a parser, dependencies, Cloud configuration or secrets.')
+    print('Parser and backend verification: uv run --locked pytest -q')
 
 
 if __name__ == '__main__':

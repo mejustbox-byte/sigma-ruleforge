@@ -1,27 +1,7 @@
-# Changelog
+# История изменений
 
-В этом файле отражаются фактические изменения. Возможности из ROADMAP не считаются выпущенными. Версионных релизов пока нет.
+## 0.1.0 — 2026-10-09
 
-## Unreleased
+Первый исполняемый офлайн выпуск: CLI validate/convert/test/attack-map/backends, bounded YAML loader, condition AST, Splunk SPL1 и строгий pipeline, synthetic event fixtures и golden-проверки. Добавлены packaging, dependency lock, CI workflow и рабочие инструкции.
 
-### Added
-
-- TECH-STACK.md: выбор версий и инструментов с обоснованием.
-- scripts/smoke.py: офлайн-проверка runtime и документации без зависимостей.
-
-- ARCHITECTURE.md: проект безопасного YAML-парсера, валидации, IR, адаптеров, golden-тестов, ATT&CK mapping и диагностики.
-- CONTRIBUTING.md: требования к fixtures, backend-тестам, review и публичному OPSEC.
-
-### Changed
-
-- README.md: уточнён статус документационного проекта, границы возможностей и ссылки.
-- INSTALL.md: описаны доступное получение исходников и будущий контракт CLI без обещания существующего пакета.
-- ROADMAP.md: выделены этапы с проверяемыми критериями приёмки.
-
-### Existing foundation
-
-- Базовые документы проекта, MIT LICENSE и SECURITY.md уже присутствовали до этого обновления.
-
-### Not implemented
-
-- Парсер, конвертеры, CLI, тестовые наборы и исполняемая установка ещё не добавлены.
+Ограничения: один backend и частичный профиль Sigma 2.1.0; без встроенного ATT&CK snapshot, контейнера и реальной Splunk integration acceptance.
