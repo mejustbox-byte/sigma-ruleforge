@@ -269,3 +269,13 @@ def test_large_dataset_and_tactics(tmp_path, capsys):
     bundle["objects"].append(bundle["objects"][1])
     dataset.write_text(json.dumps(bundle))
     assert main(["attack-map", str(path), "--dataset", str(dataset)]) == 1
+
+
+def test_crlf_golden(tmp_path):
+    import shutil
+
+    for name in ("manifest.json", "process_creation.yml", "splunk.yml"):
+        shutil.copy(ROOT / "examples" / name, tmp_path / name)
+    golden = (ROOT / "examples/process_creation.spl").read_bytes().replace(b"\r\n", b"\n")
+    (tmp_path / "process_creation.spl").write_bytes(golden.replace(b"\n", b"\r\n"))
+    assert all(case["passed"] for case in run_manifest(tmp_path / "manifest.json"))

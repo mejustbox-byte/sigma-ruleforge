@@ -2,7 +2,7 @@
 
 ## Локально — 2026-10-09
 
-- 49 unit/negative/regression tests: YAML limits/tags/duplicates, condition AST, modifiers, UUID, позиции ошибок, JSON limits/duplicates, большие STIX datasets, tactic tags и release publisher с fake HTTP service.
+- 50 unit/negative/regression tests: YAML limits/tags/duplicates, condition AST, modifiers, UUID, позиции ошибок, JSON limits/duplicates, большие STIX datasets, tactic tags и release publisher с fake HTTP service.
 - Ruff lint и format check, документационный smoke.
 - Golden и synthetic events: `examples/manifest.json`, четыре проверки.
 - Pip-audit: известные уязвимости не обнаружены в применимых к платформе закреплённых runtime/dev/build/audit зависимостях на момент проверки. Аудит повторяется в CI и блокирует публикацию при ошибке.

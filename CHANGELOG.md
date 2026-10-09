@@ -2,7 +2,7 @@
 
 ## 0.1.1 — 2026-10-09
 
-Позиции семантических YAML-ошибок, ограниченный JSON parser, большие ATT&CK bundles и tactic tags. Pipeline и dataset загружаются один раз на пакет правил. Добавлены dependency audit, проверяемый release workflow, SHA-256 assets и процедура Splunk-лаборатории. Исправлены команды быстрого старта для каталога с rules и pipelines.
+Позиции семантических YAML-ошибок, ограниченный JSON parser, большие ATT&CK bundles и tactic tags. Pipeline и dataset загружаются один раз на пакет правил. Добавлены dependency audit, проверяемый release workflow, SHA-256 assets и процедура Splunk-лаборатории. Golden reader нормализует LF/CRLF для Windows; Actions обновлены на закреплённые Node 24 версии. Исправлены команды быстрого старта для каталога с rules и pipelines.
 
 ## 0.1.0 — 2026-10-09
 

@@ -94,7 +94,13 @@ def test_manifest(path):
             checks.append(matches(rule, fixture["event"]) == fixture["match"])
         if "pipeline" in case:
             query = convert(rule, load_yaml(root / case["pipeline"]))
-            checks.append(query + "\n" == read_bytes(root / case["golden"]).decode("utf-8"))
+            checks.append(
+                query + "\n"
+                == read_bytes(root / case["golden"])
+                .decode("utf-8")
+                .replace("\r\n", "\n")
+                .replace("\r", "\n")
+            )
         if not checks:
             fail("MANIFEST", "Case has no event or golden checks")
         results.append({"rule": case["rule"], "checks": len(checks), "passed": all(checks)})
