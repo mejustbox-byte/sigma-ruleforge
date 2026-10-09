@@ -1,6 +1,6 @@
 # Sigma RuleForge
 
-Офлайн CLI для проверки Sigma-правил, генерации Splunk SPL и тестирования правил на синтетических событиях. Версия 0.1.0 реализует ограниченный профиль Sigma Rules Specification 2.1.0.
+Офлайн CLI для проверки Sigma-правил, генерации Splunk SPL и тестирования правил на синтетических событиях. Версия 0.1.1 реализует ограниченный профиль Sigma Rules Specification 2.1.0.
 
 ## Быстрый старт
 
@@ -8,7 +8,7 @@
 git clone https://github.com/mejustbox-byte/sigma-ruleforge.git
 cd sigma-ruleforge
 uv sync --locked
-uv run --locked ruleforge validate examples/ --format json
+uv run --locked ruleforge validate examples/process_creation.yml --format json
 uv run --locked ruleforge convert examples/process_creation.yml --pipeline examples/splunk.yml
 uv run --locked ruleforge test --manifest examples/manifest.json
 ```
@@ -25,7 +25,7 @@ uv run --locked ruleforge test --manifest examples/manifest.json
 
 ## Ограничения
 
-Это профиль совместимости, а не полная реализация Sigma. Keyword/list-of-map selectors, regex/base64/cidr modifiers, float, correlation, filters, aggregation и multi-document YAML отклоняются. Backend только Splunk. ATT&CK bundle не включён: его происхождение и версию необходимо фиксировать при подготовке локального набора. Tactic-name теги пока выводятся как unknown.
+Это профиль совместимости, а не полная реализация Sigma. Keyword/list-of-map selectors, regex/base64/cidr modifiers, float, correlation, filters, aggregation и multi-document YAML отклоняются. Backend только Splunk. ATT&CK bundle не включён: его происхождение и версию необходимо фиксировать при подготовке локального набора. Теги тактик сопоставляются по x_mitre_shortname локального STIX bundle.
 
 Запросы не выполняются в SIEM. Локальный event runner использует плоские события со скалярными полями; он не моделирует Splunk extraction, multivalue fields и различия Unicode case folding. Интеграционная проверка на реальном Splunk ещё не выполнена. Готовность ограничена офлайн CLI и проверенным профилем.
 
@@ -36,6 +36,8 @@ uv run --locked ruleforge test --manifest examples/manifest.json
 - [Стек и воспроизводимость](TECH-STACK.md)
 - [Разработка](CONTRIBUTING.md)
 - [Roadmap](ROADMAP.md)
+- [Приёмка Splunk](docs/SPLUNK-ACCEPTANCE.md)
+- [Проверки выпуска](docs/VALIDATION.md)
 - [Изменения](CHANGELOG.md)
 - [Безопасность](SECURITY.md)
 - [MIT](LICENSE)

@@ -1,10 +1,10 @@
-# Архитектура и профиль 0.1.0
+# Архитектура и профиль 0.1.1
 
 Поток: bounded UTF-8 → YAML loader → профиль валидации → condition AST → backend или synthetic event runner. Реализация находится в `src/ruleforge/core.py`; CLI и manifest runner — в `src/ruleforge/cli.py`.
 
 ## Безопасность входа
 
-Максимум 1 MiB на YAML/JSON-вход, 20 000 YAML-токенов, глубина YAML 40. Condition: максимум 512 токенов и вложенность 40; максимум 128 селекторов и 128 значений в списке. SafeLoader не создаёт произвольные объекты; anchors, aliases, explicit tags, duplicate keys и multiple documents запрещены до обработки правила. Mapping keys — строки. Это защита ресурсов, а не sandbox для произвольного недоверенного кода.
+Максимум 1 MiB на YAML, manifest и golden; ATT&CK JSON — до 128 MiB, 20 000 YAML-токенов, глубина YAML 40. Condition: максимум 512 токенов и вложенность 40; максимум 128 селекторов и 128 значений в списке. SafeLoader не создаёт произвольные объекты; anchors, aliases, explicit tags, duplicate keys и multiple documents запрещены до обработки правила. Mapping keys — строки. Это защита ресурсов, а не sandbox для произвольного недоверенного кода.
 
 ## Профиль Sigma
 
@@ -22,8 +22,8 @@ Unicode case folding, field extraction, boolean string representation и multiva
 
 ## ATT&CK
 
-`attack-map` принимает локальный STIX bundle, сопоставляет external_id из references с source_name `mitre-attack`, сообщает revoked/deprecated/unknown и SHA-256 входного bundle. Встроенного snapshot и полного resolver tactics нет. Версию, domain, provenance URL и условия использования dataset следует хранить рядом с локальным bundle. Синтетический unit fixture не является настоящим ATT&CK dataset.
+`attack-map` принимает локальный STIX bundle, сопоставляет external_id из references с source_name `mitre-attack`, сообщает revoked/deprecated/unknown и SHA-256 входного bundle. Встроенного snapshot нет; tactic shortnames сопоставляются с x-mitre-tactic, techniques/sub-techniques — с attack-pattern. Дубли внешних идентификаторов отклоняются. Версию, domain, provenance URL и условия использования dataset следует хранить рядом с локальным bundle. Синтетический unit fixture не является настоящим ATT&CK dataset.
 
 ## Модель угроз
 
-Недоверенный YAML может содержать вредоносные tags, aliases, duplicate keys или ресурсоёмкие выражения; они ограничены loader и profile. Pipeline не допускает command injection через поля и scope. Нет eval, shell, plugin loading или сетевой отправки. Output защищён от случайной перезаписи. CLI читает пути manifest, указанные оператором: manifest не является изолированным sandbox. Ошибки IO могут содержать локальные пути; публично публикуйте отчёты после проверки. Зависимости закреплены lock-файлом; CVE-аудит и контейнерная изоляция пока не реализованы.
+Недоверенный YAML может содержать вредоносные tags, aliases, duplicate keys или ресурсоёмкие выражения; они ограничены loader и profile. Pipeline не допускает command injection через поля и scope. Нет eval, shell, plugin loading или сетевой отправки. Output защищён от случайной перезаписи. CLI читает пути manifest, указанные оператором: manifest не является изолированным sandbox. Ошибки IO могут содержать локальные пути; публично публикуйте отчёты после проверки. Зависимости закреплены lock-файлом; Dependency audit включён в CI; контейнерная изоляция не реализована.
