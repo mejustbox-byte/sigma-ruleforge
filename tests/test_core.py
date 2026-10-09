@@ -188,12 +188,13 @@ def test_modifiers(tmp_path, key, value, event, expected):
     assert matches(validate(rule(tmp_path, text)), event) is expected
 
 
-def test_uuid_normalization(tmp_path):
+def test_uuid_normalization(tmp_path, capsys):
     path = rule(tmp_path)
     (tmp_path / "second.yml").write_text(
         BASE.replace(
-            "7b79be24-6d8a-4c31-bd15-df297b38e8b3", "{7b79be24-6d8a-4c31-bd15-df297b38e8b3}"
+            "7b79be24-6d8a-4c31-bd15-df297b38e8b3", "'{7b79be24-6d8a-4c31-bd15-df297b38e8b3}'"
         )
     )
     assert main(["validate", str(tmp_path)]) == 1
+    assert "DUPLICATE_ID" in capsys.readouterr().out
     assert validate(path).metadata["id"] == "7b79be24-6d8a-4c31-bd15-df297b38e8b3"
